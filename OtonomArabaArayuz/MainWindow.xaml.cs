@@ -16,14 +16,15 @@ namespace OtonomArabaArayuz
         
         // Map Variables
         private Ellipse _carMarker;
+        private Ellipse _targetMarker; // Tipi düzelttik
         private Polyline _pathLine;
         private double _currentX = 0; // cm
         private double _currentY = 0; // cm
         private double _lastDistance = 0;
-        private double _currentAngle = 0; // Derece (0 = Yukarı/Kuzey)
+        private double _currentAngle = 0; 
         
-        // Scale: 1 px = 1 cm (basitlik için) -> Harita büyüdükçe zoom gerekebilir
-        private double _scale = 0.5; // 1 cm = 0.5 px
+        // Scale: 1 px = 1 cm
+        private double _scale = 0.5;
         private double _centerX = 0;
         private double _centerY = 0;
 
@@ -50,7 +51,10 @@ namespace OtonomArabaArayuz
                 StrokeThickness = 2
             };
             
-            // Rota çizgisi
+            
+            // Hedef İkonu (Kırmızı X) - İlk tıklamada oluşturulacak
+            // _targetMarker = ... (Kaldırıldı)
+            
             _pathLine = new Polyline
             {
                 Stroke = Brushes.Cyan,
@@ -58,9 +62,47 @@ namespace OtonomArabaArayuz
                 Opacity = 0.6
             };
             
-            // Öncelikle Canvas üzerine ekleyelim (Pozisyonlama SizeChanged'de yapılacak)
             mapCanvas.Children.Add(_pathLine);
             mapCanvas.Children.Add(_carMarker);
+            
+            // Tıklama olayını ekle
+            mapCanvas.MouseLeftButtonDown += MapCanvas_MouseLeftButtonDown;
+        }
+
+        private async void MapCanvas_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            Point p = e.GetPosition(mapCanvas);
+            
+            // Ekran koordinatını (px) Dünya koordinatına (cm) çevir
+            // screenX = centerX + (worldX * scale)
+            // worldX = (screenX - centerX) / scale
+            
+            double targetX = (p.X - _centerX) / _scale;
+            double targetY = (p.Y - _centerY) / _scale;
+            
+            // Hedef işaretini çiz
+            DrawTargetMarker(p.X, p.Y);
+            
+            Log($"HEDEF BELİRLENDİ: X={targetX:F1}, Y={targetY:F1}");
+            
+            // Veriyi Gönder
+            // Format: GOTO:X:Y
+            string command = $"GOTO:{targetX:F1}:{targetY:F1}\n";
+            await _networkService.SendData(command);
+        }
+
+        private void DrawTargetMarker(double screenX, double screenY)
+        {
+             if (_targetMarker != null && mapCanvas.Children.Contains(_targetMarker)) 
+             {
+                 mapCanvas.Children.Remove(_targetMarker);
+             }
+             
+             _targetMarker = new Ellipse { Width=14, Height=14, Stroke=Brushes.Red, StrokeThickness=3 };
+             Canvas.SetLeft(_targetMarker, screenX - 7);
+             Canvas.SetTop(_targetMarker, screenY - 7);
+             
+             mapCanvas.Children.Add(_targetMarker);
         }
 
         private void mapCanvas_SizeChanged(object sender, SizeChangedEventArgs e)

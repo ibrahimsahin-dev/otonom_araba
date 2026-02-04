@@ -15,6 +15,8 @@ namespace OtonomArabaArayuz.Core
         public event Action<TelemetryData> OnDataReceived;
         public event Action<string> OnLog;
 
+        private TcpClient _connectedClient; // Aktif istemciyi sakla
+
         public async Task StartServerAsync(int port)
         {
             try
@@ -31,6 +33,7 @@ namespace OtonomArabaArayuz.Core
                     {
                         var client = await _listener.AcceptTcpClientAsync();
                         OnLog?.Invoke("Yeni bir istemci bağlandı!");
+                        _connectedClient = client; // İstemciyi kaydet
                         _ = HandleClientAsync(client, _cts.Token);
                     }
                     catch (ObjectDisposedException)
@@ -44,11 +47,28 @@ namespace OtonomArabaArayuz.Core
                 OnLog?.Invoke($"Server Hatası: {ex.Message}");
             }
         }
+        
+        public async Task SendData(string message)
+        {
+            if (_connectedClient != null && _connectedClient.Connected)
+            {
+                try
+                {
+                    byte[] data = Encoding.UTF8.GetBytes(message);
+                    await _connectedClient.GetStream().WriteAsync(data, 0, data.Length);
+                }
+                catch (Exception ex)
+                {
+                    OnLog?.Invoke($"Veri gönderme hatası: {ex.Message}");
+                }
+            }
+        }
 
         public void StopServer()
         {
             _cts?.Cancel();
             _listener?.Stop();
+            _connectedClient?.Close();
             OnLog?.Invoke("Server durduruldu.");
         }
 
@@ -66,7 +86,6 @@ namespace OtonomArabaArayuz.Core
                         if (bytesRead == 0) break;
 
                         string data = Encoding.UTF8.GetString(buffer, 0, bytesRead);
-                        // Beklenen Format: "SPEED:12.5;DIST:100.2"
                         ProcessData(data);
                     }
                 }
@@ -75,6 +94,7 @@ namespace OtonomArabaArayuz.Core
                     OnLog?.Invoke($"Bağlantı kesildi: {ex.Message}");
                 }
             }
+            if (_connectedClient == client) _connectedClient = null;
             OnLog?.Invoke("İstemci ayrıldı.");
         }
 

@@ -24,3 +24,27 @@ Detaylı kurulum adımları, bağlantı şemaları ve çalıştırma komutları 
 ### Gereksinimler
 *   **PC:** Windows 10/11, .NET SDK
 *   **Araç:** Arduino (Mega/Uno), Raspberry Pi, Motor Encoderlar, MPU6050 Sensör
+
+## 🤖 Yapay Zeka Laboratuvarı (AI Labs)
+
+Aracınızı yapay zeka ile eğitmek ve simülasyon ortamında test etmek için `OtonomArabaArayuz/AI_Labs` klasörünü kullanabilirsiniz.
+
+### Kurulum (PC)
+Yapay zeka simülasyonunu çalıştırmak için gerekli kütüphaneleri yükleyin:
+```powershell
+pip install pygame-ce numpy
+```
+
+### Başlatma
+Sanal bir araba simülasyonu başlatmak ve yapay zekayı (Q-Learning) eğitmek için:
+```powershell
+cd OtonomArabaArayuz/AI_Labs
+python train_q_learning.py
+```
+*   Bu komut, sanal bir ortamda arabayı 1000 bölüm boyunca eğitir ve eğitilen modeli `q_table.npy` olarak kaydeder.
+*   Eğitim bitince otomatik olarak görsel test sürüşü başlar.
+
+### Dosyalar
+*   **`virtual_env.py`**: Sanal simülasyon ortamı (Fizik motoru).
+*   **`train_q_learning.py`**: Ajanı eğiten ana script.
+*   **`real_car_env.py`**: Gerçek araçla eğitim yapmak için köprü.

@@ -18,9 +18,14 @@ class VirtualCarEnv:
         self.speed = 0
         self.radius = 15
         
+        # Hedef Ayarları
+        self.goal_x = 700
+        self.goal_y = 500
+        self.goal_radius = 20
+        
         # Sensör Ayarları (6 Sensör)
-        self.sensor_angles = [-45, 0, 45, -90, 90, 180] # Ön Sol, Ön Orta, Ön Sağ, Yan Sol, Yan Sağ, Arka
-        self.sensor_range = 200 # cm (piksel olarak kabul edelim)
+        self.sensor_angles = [-45, 0, 45, -90, 90, 180] 
+        self.sensor_range = 200 
         
         # Engeller (x, y, w, h)
         self.obstacles = [
@@ -33,21 +38,30 @@ class VirtualCarEnv:
             (790, 0, 10, 600)
         ]
         
+        # Pygame Başlat
         if self.render_mode:
             import pygame
             pygame.init()
+            pygame.display.set_caption("AI Training Simulation")
             self.screen = pygame.display.set_mode((self.width, self.height))
             self.clock = pygame.time.Clock()
 
     def reset(self):
+        # Aracı ve Hedefi Rastgele Yerleştir (Engelle çakışmayacak şekilde)
         self.car_x = 100
         self.car_y = 100
         self.car_angle = random.randint(0, 360)
-        self.speed = 0
+        
+        # Rastgele Hedef (Basitlik için sabit veya yarı-rastgele olabilir)
+        self.goal_x = random.randint(100, 700)
+        self.goal_y = random.randint(100, 500)
+        
         return self.get_state()
 
     def step(self, action):
         # Action: 0:Dur, 1:İleri, 2:Geri, 3:Sol, 4:Sağ
+        
+        prev_dist_to_goal = math.hypot(self.goal_x - self.car_x, self.goal_y - self.car_y)
         
         # Fizik Hareket
         turn_speed = 5
@@ -64,26 +78,37 @@ class VirtualCarEnv:
         elif action == 4: # Sağ
             self.car_angle += turn_speed
             
-        # Açı Normalizasyonu
         self.car_angle %= 360
         
         # Sensörleri Oku
         state = self.get_state()
+        min_sensor_dist = min(state[:6]) # İlk 6 değer sensör
         
-        # Çarpışma Kontrolü (Basit: En az bir sensör < 10 ise çarptı say)
-        # Gerçek fizik çarpışması yerine sensör verisine güvenelim
+        # Hedef Hesaplamaları
+        dist_to_goal = math.hypot(self.goal_x - self.car_x, self.goal_y - self.car_y)
+        
         done = False
-        min_dist = min(state)
-        
         reward = 0
-        if min_dist < 10:
+        
+        # 1. Hedefe Ulaşma
+        if dist_to_goal < self.goal_radius + self.radius:
             done = True
-            reward = -100 # Çarpma cezası
-        elif action == 1: # İleri gidiyorsa ödül
-            reward = 1
-            if min_dist < 40: reward = 0.5 # Engele yaklaşınca az ödül
+            reward = 100 # Büyük Ödül!
+            print("Hedefe Ulaşıldı! 🏆")
+            
+        # 2. Çarpışma
+        elif min_sensor_dist < 10:
+            done = True
+            reward = -100 # Ceza
+            
+        # 3. Adım Ödülü (Shaping)
         else:
-            reward = -0.1 # Durmak veya dönmek zaman kaybı (Hafif ceza)
+            # Hedefe yaklaştı mı?
+            diff = prev_dist_to_goal - dist_to_goal
+            reward += diff * 0.5 # Yaklaştıysa pozitif, uzaklaştıysa negatif
+            
+            # Zaman cezası (Hızlı gitmesi için)
+            reward -= 0.1
             
         if self.render_mode:
             self.render(state)
@@ -91,19 +116,29 @@ class VirtualCarEnv:
         return state, reward, done, {}
 
     def get_state(self):
+        # Sensörler
         readings = []
         for angle_offset in self.sensor_angles:
             angle = math.radians(self.car_angle + angle_offset)
             dist = self.cast_ray(self.car_x, self.car_y, angle)
             readings.append(dist)
-        return np.array(readings)
+            
+        # Hedef Bilgisi (Polar Koordinat: Mesafe ve Açı Farkı)
+        dist_to_goal = math.hypot(self.goal_x - self.car_x, self.goal_y - self.car_y)
+        
+        target_angle = math.degrees(math.atan2(self.goal_y - self.car_y, self.goal_x - self.car_x))
+        angle_diff = target_angle - self.car_angle
+        angle_diff = (angle_diff + 180) % 360 - 180 # -180 ile 180 arasına çek
+        
+        # State Vektörü: [S1, S2, ..., S6, Hedef_Mesafe, Hedef_Açı_Farkı]
+        state = np.array(readings + [dist_to_goal, angle_diff])
+        return state
 
     def cast_ray(self, start_x, start_y, angle):
-        for dist in range(1, self.sensor_range, 2): # 5 piksel adımla tara
+        for dist in range(1, self.sensor_range, 5): 
             x = start_x + dist * math.cos(angle)
             y = start_y + dist * math.sin(angle)
             
-            # Sınır ve Engel Kontrolü
             if x < 0 or x > self.width or y < 0 or y > self.height:
                 return dist
             
@@ -114,25 +149,24 @@ class VirtualCarEnv:
 
     def render(self, state):
         import pygame
-        self.screen.fill((0, 0, 0)) # Siyah Arka Plan
+        self.screen.fill((0, 0, 0)) 
         
-        # Engelleri Çiz
+        # Engeller
         for obs in self.obstacles:
             pygame.draw.rect(self.screen, (100, 100, 255), obs)
             
-        # Arabayı Çiz
-        pygame.draw.circle(self.screen, (255, 255, 0), (int(self.car_x), int(self.car_y)), self.radius)
-        
-        # Sensörleri Çiz
-        for i, dist in enumerate(state):
-            angle = math.radians(self.car_angle + self.sensor_angles[i])
-            end_x = self.car_x + dist * math.cos(angle)
-            end_y = self.car_y + dist * math.sin(angle)
-            color = (0, 255, 0) if dist > 40 else (255, 0, 0)
-            pygame.draw.line(self.screen, color, (self.car_x, self.car_y), (end_x, end_y), 1)
+        # Hedef
+        pygame.draw.circle(self.screen, (0, 255, 0), (int(self.goal_x), int(self.goal_y)), self.goal_radius)
             
+        # Araba
+        pygame.draw.circle(self.screen, (255, 255, 0), (int(self.car_x), int(self.car_y)), self.radius)
+        # Yön çizgisi
+        front_x = self.car_x + 20 * math.cos(math.radians(self.car_angle))
+        front_y = self.car_y + 20 * math.sin(math.radians(self.car_angle))
+        pygame.draw.line(self.screen, (255, 255, 255), (self.car_x, self.car_y), (front_x, front_y), 2)
+        
         pygame.display.flip()
-        self.clock.tick(60) # 60 FPS sınırla
+        self.clock.tick(60) 
         
         for event in pygame.event.get():
             if event.type == pygame.QUIT:

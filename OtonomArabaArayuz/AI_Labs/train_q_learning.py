@@ -13,20 +13,36 @@ EPSILON_DECAY = 0.995
 EPSILON_MIN = 0.01
 
 # Q-Table Ayarları
-# 6 sensör var, her birini 3 seviyeye bölelim: 0 (Yakın), 1 (Orta), 2 (Uzak)
-# State sayısı: 3^6 = 729
+# State: 6 Sensör (3 seviye) + Hedef Açı Farkı (4 Yön: Ön, Sol, Sağ, Arka)
+# Mesafe bilgisini şimdilik ihmal edelim, açı daha kritik.
 SENSOR_LEVELS = 3 
+ANGLE_LEVELS = 4
 ACTION_SIZE = 5
 
 q_table = {} 
 
 def discretize_state(state):
-    # Sensör verisini seviyelendirme (0-200 arası)
+    # State formatı: [S1...S6, Hedef_Dist, Hedef_Angle]
+    
+    # 1. Sensörleri Seviyelendir
     levels = []
-    for dist in state:
-        if dist < 40: levels.append(0) # Çok Yakın (Tehlike)
-        elif dist < 100: levels.append(1) # Orta
-        else: levels.append(2) # Uzak (Güvenli)
+    for dist in state[:6]:
+        if dist < 50: levels.append(0) # Çok Yakın (Tehlike)
+        elif dist < 120: levels.append(1) # Orta
+        else: levels.append(2) # Uzak
+        
+    # 2. Hedef Açısını Seviyelendir (-180, 180)
+    angle = state[7] 
+    # Ön: -45 ile 45, Sol: -135 ile -45, Sağ: 45 ile 135, Arka: Diğerleri
+    
+    angle_level = 0
+    if -45 <= angle <= 45: angle_level = 0 # Hedef Önde
+    elif -135 <= angle < -45: angle_level = 1 # Hedef Solda
+    elif 45 < angle <= 135: angle_level = 2 # Hedef Sağda
+    else: angle_level = 3 # Hedef Arkada
+    
+    levels.append(angle_level)
+    
     return tuple(levels)
 
 def get_q_value(state):

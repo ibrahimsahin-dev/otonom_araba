@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("OtonomArabaArayuz")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+497506e48b4d291c6a4e317afbfe0acdd2c5e467")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+7d2165e4def951d43f956ca2148d3974b915aec6")]
 [assembly: System.Reflection.AssemblyProductAttribute("OtonomArabaArayuz")]
 [assembly: System.Reflection.AssemblyTitleAttribute("OtonomArabaArayuz")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

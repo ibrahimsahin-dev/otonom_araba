@@ -53,11 +53,32 @@ def socket_listener():
                 data = sock.recv(1024)
                 if not data: break
                 
-                cmd = data.decode('utf-8').strip()
-                print(f"PC -> Araba: {cmd}")
+                cmd_raw = data.decode('utf-8').strip()
+                # print(f"PC -> Araba (Ham): {cmd_raw}")
                 
-                if ser:
-                    ser.write((cmd + "\n").encode('utf-8'))
+                # C# Arayüzü "DRIVE:150:45" gibi atabilir (45 derece)
+                # Arduino "DRV:150:20" bekler (20 adım)
+                if cmd_raw.startswith("DRIVE:"):
+                    parts = cmd_raw.split(':')
+                    if len(parts) >= 3:
+                        spd = int(parts[1])
+                        angle_deg = int(parts[2])
+                        
+                        # Dereceyi Adıma Çevir (Basit bir oranlama)
+                        # Örn: Max 30 derece = 50 adım
+                        steps = int(angle_deg * (50.0 / 30.0))
+                        
+                        arduino_cmd = f"DRV:{spd}:{steps}"
+                        print(f"PC -> Araba (Map): {arduino_cmd}")
+                        if ser: ser.write((arduino_cmd + "\n").encode('utf-8'))
+                
+                elif cmd_raw == "STOP":
+                    if ser: ser.write("STOP\n".encode('utf-8'))
+                    
+                else:
+                    # Diğer komutları olduğu gibi ilet
+                    if ser: ser.write((cmd_raw + "\n").encode('utf-8'))
+                    
         except Exception as e:
             print(f"Socket okuma hatası: {e}")
             break
